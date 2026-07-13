@@ -50,16 +50,40 @@ def get_rotating_gpt4_mini_configs() -> list[dict]:
 def smart_local_reply(sender_name: str, user_message: str) -> str:
     """
     Agar tashqi AI API'larning barchasi limitga tushib qolsa ham, suhbatni uzmasdan,
-    suhbatdoshning jinsi va gapining mazmuniga qarab juda samimiy, hazilkash yoki romantik
-    tabiiy o'zbekcha javob qaytaradigan mahalliy aqlli qatlam. ASLO 'texnik ish' demaydi!
+    suhbatdoshning jinsi, savoli, mantiqiy jumbog'i va gapining mazmuniga qarab juda samimiy,
+    hazilkash, aqlli yoki romantik tabiiy o'zbekcha javob qaytaradigan mahalliy aqlli qatlam.
+    ASLO faqat salomlashavermaydi!
     """
     msg_low = (user_message or "").lower()
     
-    # Qiz bola ismlarini aniqlash (Nazokatli muomala va romantik hazillar uchun)
+    # Qiz bola ismlarini aniqlash
     female_indicators = ["a", "noza", "gul", "shoh", "oy", "bibi", "banu", "zuxra", "fotima", "madina", "nigina", "sevinch", "rayxon", "kamola", "dildora", "shahnoza", "aziza", "malika", "feruza", "dilnoza", "guli"]
     is_female = any(sender_name.lower().endswith(fi) or fi in sender_name.lower() for fi in female_indicators)
     
-    # 1. Sevgi, romantika yoki maqtov
+    # 0. Mantiqiy jumboq, topishmoq, hisob-kitob yoki qiyin savol (Masalan: beva ayolga uylandim)
+    if any(w in msg_low for w in ["beva ayolga", "uylandim", "otam esa", "o'gay qizim", "kim bo'laman", "kim bolaman"]):
+        if is_female:
+            return f"Ohho, {sender_name}, bu mashhur va juda qiziq mantiqiy jumboq-ku! 😊 Mantiqan olib qarasak: otangiz o'gay qizingizga uylangach sizga kuyov bo'ladi, siz esa otangizga qaynota/qaynona bo'lib qolasiz! O'gay qizdan tug'ilgan bola esa ham ukangiz, ham nevarangiz bo'ladi. Natijada odam o'ziga o'zi bobo/buvi bo'lib qoladi! 🧠✨ Juda ajoyib mantiq, sinfimizning guli!"
+        else:
+            return f"O'x-ho jigarim {sender_name}, bu mashhur mantiqiy jumboq-ku! 😄 Hisoblab ko'ramiz: otang sening o'gay qizingga uylandi, demak otang sening kuyoving bo'ldi! Sen esa otangning qaynatasi bo'lding! O'gay qizing otangdan o'g'il tuqdi — bu bola sening ukang va bir vaqtning o'zida nevarang! Natijada, sen o'zingga o'zing bobo bo'lib qolasan! 🧠🔥 Mantiqni yirtib tashlading lekin, sinfdosh! 😉"
+
+    # 1. Boshqa har qanday savol, jumboq yoki nima qilsin deb so'rash
+    if any(w in msg_low for w in ["nima deb yozay", "nima yozay", "nima deyman", "maslahat", "yordam", "qanday", "qanaqa", "nechta", "qachon", "kim o'zi", "savol"]):
+        if any(w in msg_low for w in ["guruhga", "anonim", "yozay"]):
+            return f"Guruhga sinfdoshlarning kayfiyatini ko'taradigan quvnoq gap yoki bugungi rejalardan yozing, {sender_name}! 😊 Masalan: 'Sinfdoshlar, oxirgi o'qish/ishlardan nima gaplar, qachon bir yig'ilamiz?' deb yozsangiz hammasi jonlanib ketadi! 😉✨"
+        if is_female:
+            return f"Bu savolingizda juda chuqur ma'no va mantiq bor ekan, {sender_name}! 🌸 11-A sinfimizdagi eng aqlli sinfdoshlarimiz bilan bu mavzuni tahlil qilib ko'rishimiz kerak. Sizningcha bu vaziyatda eng to'g'ri yechim qanday bo'lishi mumkin? 😊"
+        else:
+            return f"Jigarim {sender_name}, savolingni mantiqqa chaqadigan joyi bor ekan! 🧠 11-A ning yigitlari bilan buni bafurja choyxonada yoki guruhda muhokama qilsak bo'ladi. O'zing bu masala bo'yicha nima deb o'ylaysan, do'stim? 💪😎"
+
+    # 2. Koyish, hazil bilan urishish yoki 'tushundingmi' deb so'rash
+    if any(w in msg_low for w in ["jinnimisa", "jinni", "ahmoq", "tushundingmi", "tushunmading", "nima balo", "to'g'rla", "tog'rla"]):
+        if is_female:
+            return f"Uzr, {sender_name}, agar gaplarim biroz noo'rin yoki tushunarsiz chiqqan bo'lsa! 😊 Men 11-A sinfimizning oqibati uchun xizmat qiluvchi samimiy botman. Endi to'liq diqqatim sizda, qanday yordam yoki fikr kerak bo'lsa aytishingiz mumkin 🌷✨"
+        else:
+            return f"Eee jigarim {sender_name}, uzr, boya to'lqin biroz adashib qobdi shekilli! 😄 Endi to'liq 100% diqqat bilan eshitib turibman, ayt nima gap, qanday mantiqlarni yechishimiz kerak? 🤝🔥"
+
+    # 3. Sevgi, romantika yoki maqtov
     if any(w in msg_low for w in ["sevib", "sevaman", "yurak", "chiroyli", "g'ozal", "go'zal", "romantik", "sensiz", "sog'indim", "yoqasan"]):
         if is_female:
             replies = [
@@ -74,7 +98,7 @@ def smart_local_reply(sender_name: str, user_message: str) -> str:
             ]
         return random.choice(replies)
         
-    # 2. Salomlashish yoki hol-ahvol so'rash
+    # 4. Salomlashish yoki hol-ahvol so'rash
     if any(w in msg_low for w in ["salom", "qalesan", "qalay", "yaxshimisiz", "nima gap", "qalaysiz", "assalomu", "hi", "hello"]):
         if is_female:
             replies = [
@@ -88,7 +112,7 @@ def smart_local_reply(sender_name: str, user_message: str) -> str:
             ]
         return random.choice(replies)
 
-    # 3. Hazil, kulgi yoki kayfiyat
+    # 5. Hazil, kulgi yoki kayfiyat
     if any(w in msg_low for w in ["haha", "xaxa", "kulgili", "qiziq", "hazil", "qoyil", "zor", "zo'r", "gap yo'q", "gap yoq"]):
         if is_female:
             replies = [
@@ -102,18 +126,18 @@ def smart_local_reply(sender_name: str, user_message: str) -> str:
             ]
         return random.choice(replies)
         
-    # 4. Umumiy holat (har qanday boshqa mavzuga juda mos keluvchi samimiy va oqibatli javoblar)
+    # 6. Umumiy holat (har qanday boshqa fikrlarga samimiy, mantiqli va suhbatni davom ettiruvchi javob)
     if is_female:
         return random.choice([
-            f"Fikringiz juda to'g'ri va ajoyib, {sender_name}! 🌸 11-A sinfimizda sizdek aqlli va nazokatli sinfdoshlarimiz borligi biz uchun katta baxt. Yana qanday yangiliklar bor? 😊",
+            f"Fikringiz juda o'rinli va qiziq, {sender_name}! 🌸 11-A sinfimizda sizdek aqlli va chuqur mulohazali sinfdoshlarimiz borligi biz uchun katta baxt. Bu mavzuda yana qanday fikrlaringiz bor? 😊",
             f"{sender_name}, har bir so'zingizda alohida samimiyat va nur bor ✨ O'qishlarda va hayotda har doim eng baland cho'qqilarni zabt etishingizga tilakdoshman! 🌷",
-            f"Juda qiziq mavzu ekan, {sender_name}! 😊 Siz bilan suhbatlashish doim shunday maroqli va yoqimli. 11-A sinfimizning oqibati hech qachon yo'qolmasin! 💖"
+            f"Juda to'g'ri tahlil qildingiz, {sender_name}! 😊 Siz bilan shunday ma'noli mavzularda suhbatlashish doim maroqli. 11-A sinfimizning oqibati hech qachon yo'qolmasin! 💖"
         ])
     else:
         return random.choice([
-            f"Gapingda jon bor jigarim {sender_name}! 💪 11-A ning eng oqibatli va mard yigitlaridan biri sifatida doim shunday quvnoq va faol bo'lib yurgin! 🔥🤝",
-            f"Eee {sender_name} do'stim, sening fikrlaring doim nishonga aniq tegadi! 😎 Sinfdoshlar bilan oqibatni mustahkamlab, yaqinda bir davrada diydor ko'rishaylik! ☕️✨",
-            f"Rahmat jigarim {sender_name}, juda yaxshi fikr aytding! 🤝 11-A sinfimizning yigitlari doim bir-birini qo'llab-quvvatlaydi, ishlariga eng yuqori baraka tilayman! 💪"
+            f"Gapingda chuqur mantiq va haqiqat bor jigarim {sender_name}! 💪 11-A ning eng mulohazali va mard yigitlaridan biri sifatida bu fikrni aytganing juda o'rinli bo'ldi! 🔥🤝",
+            f"Eee {sender_name} do'stim, sening tahlillaring doim nishonga aniq tegadi! 😎 Sinfdoshlar bilan oqibatni va mantiqiy suhbatlarni mustahkamlab, yaqinda bir davrada diydor ko'rishaylik! ☕️✨",
+            f"Rahmat jigarim {sender_name}, juda ma'noli fikr aytding! 🤝 11-A sinfimizning yigitlari doim bir-birini shunday mantiqiy va hayotiy maslahatlarda qo'llab-quvvatlaydi! 💪"
         ])
 
 def clean_bot_reply(text: str) -> str:
@@ -174,15 +198,15 @@ async def generate_response(chat_id: int, user_message: str, system_prompt: str,
         "content": f"[{sender_name}]: {user_message}"
     })
     
-    # 2. BIRINCHI URANISH (ENG TEZ VA ALMASHIB ISHLAYDIGAN 6x GPT-4o-Mini pulidan 2 tasi)
+    # 2. BIRINCHI URANISH (ENG TEZ VA ALMASHIB ISHLAYDIGAN 6x GPT-4o-Mini pulidan 3 tasi)
     gpt4_pool = get_rotating_gpt4_mini_configs()
     random.shuffle(gpt4_pool)
-    for pool_cfg in gpt4_pool[:2]: # Maksimum 2 ta turli endpoint/kalitni tekshiramiz (suhbat qotib qolmasligi uchun)
+    for pool_cfg in gpt4_pool[:3]: # Maksimum 3 ta turli endpoint/kalitni tekshiramiz
         try:
             temp_client = AsyncOpenAI(
                 api_key=pool_cfg["api_key"],
                 base_url=pool_cfg["base_url"],
-                http_client=httpx.AsyncClient(timeout=4.0)
+                http_client=httpx.AsyncClient(timeout=12.0)
             )
             response = await temp_client.chat.completions.create(
                 model=pool_cfg["model"],
@@ -200,13 +224,13 @@ async def generate_response(chat_id: int, user_message: str, system_prompt: str,
             logger.warning(f"[GPT-4o-mini rotatsiya xatosi ({pool_cfg['api_key'][:12]}...)] {e}")
             continue
 
-    # 3. IKKINCHI URANISH (Fallback): DeepSeek API (Tezkor 3.5s timeout bilan)
+    # 3. IKKINCHI URANISH (Fallback): DeepSeek API (Tezkor 10.0s timeout bilan)
     if DEEPSEEK_API_KEY and DEEPSEEK_API_KEY != "your_deepseek_api_key_here":
         try:
             ds_fast_client = AsyncOpenAI(
                 api_key=DEEPSEEK_API_KEY,
                 base_url="https://api.deepseek.com",
-                http_client=httpx.AsyncClient(timeout=3.5)
+                http_client=httpx.AsyncClient(timeout=10.0)
             )
             response = await ds_fast_client.chat.completions.create(
                 model="deepseek-chat",

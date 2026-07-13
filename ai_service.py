@@ -1,10 +1,11 @@
 import asyncio
 import logging
 import re
+import random
 import httpx
 from openai import AsyncOpenAI
 import database
-from config import GEMINI_API_KEY, DEEPSEEK_API_KEY
+from config import GEMINI_API_KEY, DEEPSEEK_API_KEY, GPT4_MINI_API_KEYS
 
 logger = logging.getLogger(__name__)
 
@@ -22,12 +23,29 @@ gemini_openai_client = AsyncOpenAI(
     http_client=httpx.AsyncClient()
 )
 
-# Har qanday geo-cheklov yoki API limitlariga qarshi 3-qatlam: Bepul Pollinations AI (OpenAI gpt-4o-mini)
-pollinations_client = AsyncOpenAI(
-    api_key="dummy_pollinations_key",
-    base_url="https://text.pollinations.ai/openai",
-    http_client=httpx.AsyncClient()
-)
+# 5-6 ta gpt-4o-mini API kalitlari va endpointlaridan almashib-almashib ishlaydigan pul
+def get_rotating_gpt4_mini_configs() -> list[dict]:
+    configs = []
+    # 1. Agar foydalanuvchi alohida real OpenAI yoki proksi gpt-4-mini kalitlarini kiritgan bo'lsa
+    for key in GPT4_MINI_API_KEYS:
+        if key.startswith("sk-"):
+            configs.append({"base_url": "https://api.openai.com/v1", "api_key": key, "model": "gpt-4o-mini"})
+        else:
+            configs.append({"base_url": "https://text.pollinations.ai/openai", "api_key": key, "model": "openai"})
+            
+    # Hatto kam bo'lsa ham, 6 ta har xil sessiya/kalit bilan almashuvchi bepul qatlamni ta'minlaymiz
+    defaults = [
+        {"base_url": "https://text.pollinations.ai/openai", "api_key": "pollinations_key_alpha_11a", "model": "openai"},
+        {"base_url": "https://text.pollinations.ai/openai", "api_key": "pollinations_key_beta_11a", "model": "openai"},
+        {"base_url": "https://text.pollinations.ai/openai", "api_key": "pollinations_key_gamma_11a", "model": "openai"},
+        {"base_url": "https://text.pollinations.ai/openai", "api_key": "pollinations_key_delta_11a", "model": "openai"},
+        {"base_url": "https://text.pollinations.ai/openai", "api_key": "pollinations_key_omega_11a", "model": "openai"},
+        {"base_url": "https://text.pollinations.ai/openai", "api_key": "pollinations_key_sigma_11a", "model": "openai"},
+    ]
+    for d in defaults:
+        if not any(c["api_key"] == d["api_key"] for c in configs):
+            configs.append(d)
+    return configs
 
 def clean_bot_reply(text: str) -> str:
     if not text:
@@ -85,24 +103,51 @@ async def generate_response(chat_id: int, user_message: str, system_prompt: str,
         "content": f"[{sender_name}]: {user_message}"
     })
     
-    # 2. BIRINCHI URANISH (ENG TEZ VA CHEKSIZ): Pollinations AI (OpenAI gpt-4o-mini - geo-bloksiz)
-    try:
-        response = await pollinations_client.chat.completions.create(
-            model="openai",
-            messages=messages,
-            temperature=0.55,
-            max_tokens=500
-        )
-        reply_text = clean_bot_reply(response.choices[0].message.content.strip())
-        if reply_text:
-            await database.increment_stat("gemini_calls") # Asosiy AI chaqiruv hisobida saqlaymiz
-            await database.add_chat_message(chat_id, sender_name, "user", user_message)
-            await database.add_chat_message(chat_id, "11-A Oqibat Boti", "assistant", reply_text)
-            return reply_text
-    except Exception as e:
-        logger.warning(f"[Pollinations API xatosi] {e}. Gemini API ga o'tilmoqda...")
+    # 2. BIRINCHI URANISH (ENG TEZ VA ALMASHIB ISHLAYDIGAN 6x GPT-4o-Mini puli)
+    gpt4_pool = get_rotating_gpt4_mini_configs()
+    random.shuffle(gpt4_pool) # Har safar turli endpoint va kalitdan yuborib yuklamani taqsimlaymiz
+    for pool_cfg in gpt4_pool:
+        try:
+            temp_client = AsyncOpenAI(
+                api_key=pool_cfg["api_key"],
+                base_url=pool_cfg["base_url"],
+                http_client=httpx.AsyncClient(timeout=12.0)
+            )
+            response = await temp_client.chat.completions.create(
+                model=pool_cfg["model"],
+                messages=messages,
+                temperature=0.55,
+                max_tokens=500
+            )
+            reply_text = clean_bot_reply(response.choices[0].message.content.strip())
+            if reply_text:
+                await database.increment_stat("gemini_calls")
+                await database.add_chat_message(chat_id, sender_name, "user", user_message)
+                await database.add_chat_message(chat_id, "11-A Oqibat Boti", "assistant", reply_text)
+                return reply_text
+        except Exception as e:
+            logger.warning(f"[GPT-4o-mini rotatsiya xatosi ({pool_cfg['api_key'][:12]}...)] {e}")
+            continue
 
-    # 3. IKKINCHI URANISH (Fallback): Google Gemini API
+    # 3. IKKINCHI URANISH (Fallback): DeepSeek API
+    if DEEPSEEK_API_KEY and DEEPSEEK_API_KEY != "your_deepseek_api_key_here":
+        try:
+            response = await deepseek_client.chat.completions.create(
+                model="deepseek-chat",
+                messages=messages,
+                temperature=0.55,
+                max_tokens=500
+            )
+            reply_text = clean_bot_reply(response.choices[0].message.content.strip())
+            if reply_text:
+                await database.increment_stat("deepseek_calls")
+                await database.add_chat_message(chat_id, sender_name, "user", user_message)
+                await database.add_chat_message(chat_id, "11-A Oqibat Boti", "assistant", reply_text)
+                return reply_text
+        except Exception as e:
+            logger.error(f"[DeepSeek API xatosi] {e}")
+
+    # 4. UCHINCHI URANISH (Final Fallback): Google Gemini API
     if GEMINI_API_KEY and GEMINI_API_KEY != "your_gemini_api_key_here":
         models_to_try = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash", "gemini-flash-latest"]
         for model_name in models_to_try:
@@ -122,24 +167,6 @@ async def generate_response(chat_id: int, user_message: str, system_prompt: str,
             except Exception as model_err:
                 logger.warning(f"[Gemini API xatosi ({model_name})] {model_err}")
                 continue
-
-    # 4. UCHINCHI URANISH (Final Fallback): DeepSeek API
-    if DEEPSEEK_API_KEY and DEEPSEEK_API_KEY != "your_deepseek_api_key_here":
-        try:
-            response = await deepseek_client.chat.completions.create(
-                model="deepseek-chat",
-                messages=messages,
-                temperature=0.55,
-                max_tokens=500
-            )
-            reply_text = clean_bot_reply(response.choices[0].message.content.strip())
-            if reply_text:
-                await database.increment_stat("deepseek_calls")
-                await database.add_chat_message(chat_id, sender_name, "user", user_message)
-                await database.add_chat_message(chat_id, "11-A Oqibat Boti", "assistant", reply_text)
-                return reply_text
-        except Exception as e:
-            logger.error(f"[DeepSeek API xatosi] {e}")
 
     await database.increment_stat("api_errors")
     return f"Assalomu alaykum, {sender_name}! 😊 Hozircha AI tizimimizda qisqa yangilanish bo'lmoqda, lekin men baribir 11-a sinfimizning eng oqibatli va samimiy botiman! ✨🤝"

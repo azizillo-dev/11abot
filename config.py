@@ -7,6 +7,9 @@ BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
 
+_gpt4_mini_raw = os.getenv("GPT4_MINI_API_KEYS", "pollinations_key_alpha_11a,pollinations_key_beta_11a,pollinations_key_gamma_11a,pollinations_key_delta_11a,pollinations_key_omega_11a,pollinations_key_sigma_11a")
+GPT4_MINI_API_KEYS = [k.strip() for k in _gpt4_mini_raw.split(",") if k.strip()]
+
 # Admin ID larini list<int> ko'rinishida olish
 _admin_ids_raw = os.getenv("ADMIN_IDS", "")
 ADMIN_IDS = []

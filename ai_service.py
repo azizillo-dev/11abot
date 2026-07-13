@@ -127,22 +127,24 @@ def clean_bot_reply(text: str) -> str:
         cleaned = cleaned[1:-1].strip()
         
     # Ko'p emojilarni tartibga solish (agar 3 yoki undan ortiq emoji kelsa, faqat birini qoldirish)
-    # Emojilarni aniqlash va ortiqchasini kesish (oddiy cheklov)
-    emoji_pattern = r'[\U0001F300-\U0001F9FF\U0002600-\U00026FF\U0002700-\U00027BF]'
-    emojis_found = re.findall(emoji_pattern, cleaned)
-    if len(emojis_found) > 2:
-        # 3 ta yoki undan ortiq emoji bo'lsa, oxiridagi yoki o'rtasidagi ortiqchalarini olib tashlaymiz
-        parts = re.split(f'({emoji_pattern})', cleaned)
-        new_parts = []
-        count = 0
-        for part in parts:
-            if re.match(emoji_pattern, part):
-                count += 1
-                if count <= 2:
-                    new_parts.append(part)
-            else:
-                new_parts.append(part)
-        cleaned = "".join(new_parts).strip()
+    # Emojilarni aniqlash va ortiqchasini kesish (Python 3.12 xatosiz ishlashi uchun to'g'ri unicode range)
+    try:
+        emoji_pattern = re.compile('[\u2600-\u26FF\u2700-\u27BF]|[\U00010000-\U0010ffff]', re.UNICODE)
+        emojis_found = emoji_pattern.findall(cleaned)
+        if len(emojis_found) > 2:
+            parts = emoji_pattern.split(cleaned)
+            new_text = ""
+            e_count = 0
+            for p in parts:
+                if p and emoji_pattern.match(p):
+                    e_count += 1
+                    if e_count <= 2:
+                        new_text += p
+                else:
+                    new_text += p
+            cleaned = new_text.strip()
+    except Exception:
+        pass
         
     return cleaned or text
 
@@ -172,15 +174,15 @@ async def generate_response(chat_id: int, user_message: str, system_prompt: str,
         "content": f"[{sender_name}]: {user_message}"
     })
     
-    # 2. BIRINCHI URANISH (ENG TEZ VA ALMASHIB ISHLAYDIGAN 6x GPT-4o-Mini puli)
+    # 2. BIRINCHI URANISH (ENG TEZ VA ALMASHIB ISHLAYDIGAN 6x GPT-4o-Mini pulidan 2 tasi)
     gpt4_pool = get_rotating_gpt4_mini_configs()
-    random.shuffle(gpt4_pool) # Har safar turli endpoint va kalitdan yuborib yuklamani taqsimlaymiz
-    for pool_cfg in gpt4_pool:
+    random.shuffle(gpt4_pool)
+    for pool_cfg in gpt4_pool[:2]: # Maksimum 2 ta turli endpoint/kalitni tekshiramiz (suhbat qotib qolmasligi uchun)
         try:
             temp_client = AsyncOpenAI(
                 api_key=pool_cfg["api_key"],
                 base_url=pool_cfg["base_url"],
-                http_client=httpx.AsyncClient(timeout=12.0)
+                http_client=httpx.AsyncClient(timeout=4.0)
             )
             response = await temp_client.chat.completions.create(
                 model=pool_cfg["model"],
@@ -198,10 +200,15 @@ async def generate_response(chat_id: int, user_message: str, system_prompt: str,
             logger.warning(f"[GPT-4o-mini rotatsiya xatosi ({pool_cfg['api_key'][:12]}...)] {e}")
             continue
 
-    # 3. IKKINCHI URANISH (Fallback): DeepSeek API
+    # 3. IKKINCHI URANISH (Fallback): DeepSeek API (Tezkor 3.5s timeout bilan)
     if DEEPSEEK_API_KEY and DEEPSEEK_API_KEY != "your_deepseek_api_key_here":
         try:
-            response = await deepseek_client.chat.completions.create(
+            ds_fast_client = AsyncOpenAI(
+                api_key=DEEPSEEK_API_KEY,
+                base_url="https://api.deepseek.com",
+                http_client=httpx.AsyncClient(timeout=3.5)
+            )
+            response = await ds_fast_client.chat.completions.create(
                 model="deepseek-chat",
                 messages=messages,
                 temperature=0.55,

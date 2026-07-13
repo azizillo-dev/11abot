@@ -21,6 +21,13 @@ gemini_openai_client = AsyncOpenAI(
     http_client=httpx.AsyncClient()
 )
 
+# Har qanday geo-cheklov yoki API limitlariga qarshi 3-qatlam: Bepul Pollinations AI (OpenAI gpt-4o-mini)
+pollinations_client = AsyncOpenAI(
+    api_key="dummy_pollinations_key",
+    base_url="https://text.pollinations.ai/openai",
+    http_client=httpx.AsyncClient()
+)
+
 async def generate_response(chat_id: int, user_message: str, system_prompt: str, sender_name: str = "Sinfdosh") -> str:
     """
     Suhbat tarixini (shared context) bazadan oladi, avval Gemini API orqali javob olishga urinadi.
@@ -93,12 +100,25 @@ async def generate_response(chat_id: int, user_message: str, system_prompt: str,
                 await database.add_chat_message(chat_id, "11-A Oqibat Boti", "assistant", reply_text)
                 return reply_text
         except Exception as e:
-            logger.error(f"[DeepSeek API xatosi] {e}")
-            await database.increment_stat("api_errors")
-            return "Kechirasiz, sinfdoshlar! Hozircha AI kalitlarida kichik texnik tanaffus bo'lib turibdi 😊 Lekin oqibatimiz aslo uzilmasin! ✨"
-    
-    # Agar ikkala kalit ham kiritilmagan bo'lsa
-    fallback_msg = f"Assalomu alaykum, {sender_name}! 😊 Bot ishlashi uchun `.env` fayliga `GEMINI_API_KEY` yoki `DEEPSEEK_API_KEY` kiritishingiz kerak. Lekin men baribir 11-a sinfimizning eng oqibatli botiman! ✨🤝"
-    await database.add_chat_message(chat_id, sender_name, "user", user_message)
-    await database.add_chat_message(chat_id, "11-A Oqibat Boti", "assistant", fallback_msg)
-    return fallback_msg
+            logger.warning(f"[DeepSeek API xatosi] {e}. 3-qatlam (Pollinations AI) ga o'tilmoqda...")
+
+    # 4. Yakuniy o'tib ketilmaydigan cheksiz qatlam: Pollinations AI (Bepul va geo-bloklarsiz)
+    try:
+        response = await pollinations_client.chat.completions.create(
+            model="openai",
+            messages=messages,
+            temperature=0.75,
+            max_tokens=600
+        )
+        reply_text = response.choices[0].message.content.strip()
+        if reply_text:
+            await database.increment_stat("failover_count")
+            # Xotiraga saqlash
+            await database.add_chat_message(chat_id, sender_name, "user", user_message)
+            await database.add_chat_message(chat_id, "11-A Oqibat Boti", "assistant", reply_text)
+            return reply_text
+    except Exception as e:
+        logger.error(f"[Pollinations API xatosi] {e}")
+        await database.increment_stat("api_errors")
+
+    return f"Assalomu alaykum, {sender_name}! 😊 Hozircha AI tizimimizda qisqa yangilanish bo'lmoqda, lekin men baribir 11-a sinfimizning eng oqibatli va samimiy botiman! ✨🤝"

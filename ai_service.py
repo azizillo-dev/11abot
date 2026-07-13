@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 import httpx
 from openai import AsyncOpenAI
 import database
@@ -28,6 +29,36 @@ pollinations_client = AsyncOpenAI(
     http_client=httpx.AsyncClient()
 )
 
+def clean_bot_reply(text: str) -> str:
+    if not text:
+        return ""
+    # Prefikslarni tozalash (masalan: "11-A sinf oqibat boti:", "Bot:", "Sinfdosh boti:")
+    cleaned = re.sub(r'^(?:11-A\s+sinf\s+oqibat\s+boti|11-A\s+oqibat\s+boti|Sinfdosh\s+bot|Sinfdosh\s+boti|Oqibat\s+boti|Bot|Assistant|\[Bot\]|\[Assistant\])\s*:\s*', '', text, flags=re.IGNORECASE).strip()
+    
+    # Kotirovkalarni (qo'shtirnoq ichiga olib yuborishni) tozalash
+    if (cleaned.startswith('"') and cleaned.endswith('"')) or (cleaned.startswith("'") and cleaned.endswith("'")):
+        cleaned = cleaned[1:-1].strip()
+        
+    # Ko'p emojilarni tartibga solish (agar 3 yoki undan ortiq emoji kelsa, faqat birini qoldirish)
+    # Emojilarni aniqlash va ortiqchasini kesish (oddiy cheklov)
+    emoji_pattern = r'[\U0001F300-\U0001F9FF\U0002600-\U00026FF\U0002700-\U00027BF]'
+    emojis_found = re.findall(emoji_pattern, cleaned)
+    if len(emojis_found) > 2:
+        # 3 ta yoki undan ortiq emoji bo'lsa, oxiridagi yoki o'rtasidagi ortiqchalarini olib tashlaymiz
+        parts = re.split(f'({emoji_pattern})', cleaned)
+        new_parts = []
+        count = 0
+        for part in parts:
+            if re.match(emoji_pattern, part):
+                count += 1
+                if count <= 2:
+                    new_parts.append(part)
+            else:
+                new_parts.append(part)
+        cleaned = "".join(new_parts).strip()
+        
+    return cleaned or text
+
 async def generate_response(chat_id: int, user_message: str, system_prompt: str, sender_name: str = "Sinfdosh") -> str:
     """
     Suhbat tarixini (shared context) bazadan oladi, avval Gemini API orqali javob olishga urinadi.
@@ -37,15 +68,12 @@ async def generate_response(chat_id: int, user_message: str, system_prompt: str,
     history_records = await database.get_chat_history(chat_id, limit=12)
     
     # Suhbatdoshni eslab qolish, jinsiga qarab muomala qilish va hazillashish uchun maxsus eslatma
-    memory_context = f"\n\nHozirgi suhbatlashayotgan sinfdoshimizning ismi: {sender_name}. DIQQAT: Ismidan va suhbatdan uning QIZ BOLA yoki O'G'IL BOLA ekanini aniqlang! Agar QIZ BOLA bo'lsa: 'jigar qalesan' demang, nazokatli, sizlab, juda nozik va chiroyli muomala qiling ('Sinfimizning guli 🌸', 'Yaxshimisiz' kabi). Agar sevib qoldim yoki romantik gap yozsa, yurakni yashnatadigan romantik va nazokatli javob qaytaring! Agar O'G'IL BOLA bo'lsa: quvnoq do'stona hazil ('qalay jigar/sinfdosh') qiling!"
+    memory_context = f"\n\nHozirgi suhbatlashayotgan sinfdoshimizning ismi: {sender_name}. DIQQAT: Ismidan va suhbatdan uning QIZ BOLA yoki O'G'IL BOLA ekanini aniqlang! Agar QIZ BOLA bo'lsa: 'jigar qalesan' demang, nazokatli, sizlab, juda nozik va chiroyli muomala qiling ('Sinfimizning guli 🌸', 'Yaxshimisiz' kabi). Agar sevib qoldim yoki romantik gap yozsa, yurakni yashnatadigan romantik va nazokatli javob qaytaring! Agar O'G'IL BOLA bo'lsa: quvnoq do'stona hazil ('qalay jigar/sinfdosh') qiling! ASLO javobingiz oldiga '11-A sinf oqibat boti:' YORLIG'INI YOZMANG!"
     messages = [{"role": "system", "content": system_prompt + memory_context}]
     
     for record in history_records:
         role = record["role"]
-        # AI API faqat "user" yoki "assistant" rollarini qabul qiladi
-        if role not in ["user", "assistant"]:
-            role = "user"
-        prefix = f"[{record['sender_name']}]: " if role == "user" else ""
+        prefix = "[Bot]: " if role == "assistant" else f"[{record['sender_name']}]: "
         messages.append({
             "role": role,
             "content": f"{prefix}{record['message_text']}"
@@ -62,10 +90,10 @@ async def generate_response(chat_id: int, user_message: str, system_prompt: str,
         response = await pollinations_client.chat.completions.create(
             model="openai",
             messages=messages,
-            temperature=0.75,
-            max_tokens=600
+            temperature=0.55,
+            max_tokens=500
         )
-        reply_text = response.choices[0].message.content.strip()
+        reply_text = clean_bot_reply(response.choices[0].message.content.strip())
         if reply_text:
             await database.increment_stat("gemini_calls") # Asosiy AI chaqiruv hisobida saqlaymiz
             await database.add_chat_message(chat_id, sender_name, "user", user_message)
@@ -82,10 +110,10 @@ async def generate_response(chat_id: int, user_message: str, system_prompt: str,
                 response = await gemini_openai_client.chat.completions.create(
                     model=model_name,
                     messages=messages,
-                    temperature=0.75,
-                    max_tokens=600
+                    temperature=0.55,
+                    max_tokens=500
                 )
-                reply_text = response.choices[0].message.content.strip()
+                reply_text = clean_bot_reply(response.choices[0].message.content.strip())
                 if reply_text:
                     await database.increment_stat("failover_count")
                     await database.add_chat_message(chat_id, sender_name, "user", user_message)
@@ -101,10 +129,10 @@ async def generate_response(chat_id: int, user_message: str, system_prompt: str,
             response = await deepseek_client.chat.completions.create(
                 model="deepseek-chat",
                 messages=messages,
-                temperature=0.7,
-                max_tokens=600
+                temperature=0.55,
+                max_tokens=500
             )
-            reply_text = response.choices[0].message.content.strip()
+            reply_text = clean_bot_reply(response.choices[0].message.content.strip())
             if reply_text:
                 await database.increment_stat("deepseek_calls")
                 await database.add_chat_message(chat_id, sender_name, "user", user_message)

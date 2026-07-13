@@ -33,10 +33,10 @@ async def handle_group_messages(message: Message):
     is_mentioned = bot_username and (f"@{bot_username}" in message.text)
     is_called_by_name = any(word in message.text.lower() for word in ["bot", "oqibat bot", "11-a bot"])
     
-    # 3. Guruhda suhbat qizishida tasodifiy (masalan 12% ehtimollik bilan yoki maxsus kalit so'zlar eslatilganda)
+    # 3. Guruhda suhbat qizishida tasodifiy (masalan 8% ehtimollik bilan yoki maxsus kalit so'zlar eslatilganda)
     keywords = ["oqibat", "sinfdosh", "yig'ilish", "choyxona", "maktab", "davra", "sog'indik", "11-a"]
     has_keyword = any(kw in message.text.lower() for kw in keywords)
-    should_random_reply = (random.random() < 0.12) or has_keyword
+    should_random_reply = (random.random() < 0.08) or has_keyword
 
     if is_reply_to_bot or is_mentioned or is_called_by_name or should_random_reply:
         sender_name = message.from_user.first_name if message.from_user else "Sinfdosh"
@@ -53,8 +53,8 @@ async def handle_group_messages(message: Message):
         
         await message.reply(reply_text)
         
-        # Stikerlarni faqat kerakli, quvnoq joyda va kamroq (15% ehtimollik bilan) yuboramiz
-        if "texnik tanaffus" not in reply_text and random.random() < 0.15:
+        # Stikerlarni ortiqcha ishlatmaslik uchun faqat juda kam va qizig'ida (4% ehtimollik bilan yoki maxsus so'rovlarda) yuboramiz
+        if "texnik tanaffus" not in reply_text and random.random() < 0.04:
             try:
                 await message.answer_sticker(get_random_sticker())
             except Exception:

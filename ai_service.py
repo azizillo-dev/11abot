@@ -57,9 +57,25 @@ async def generate_response(chat_id: int, user_message: str, system_prompt: str,
         "content": f"[{sender_name}]: {user_message}"
     })
     
-    # 2. Birinchi uranish: Google Gemini API (Bir necha modellardan avtomatik o'tib ketuvchi ro'yxat)
+    # 2. BIRINCHI URANISH (ENG TEZ VA CHEKSIZ): Pollinations AI (OpenAI gpt-4o-mini - geo-bloksiz)
+    try:
+        response = await pollinations_client.chat.completions.create(
+            model="openai",
+            messages=messages,
+            temperature=0.75,
+            max_tokens=600
+        )
+        reply_text = response.choices[0].message.content.strip()
+        if reply_text:
+            await database.increment_stat("gemini_calls") # Asosiy AI chaqiruv hisobida saqlaymiz
+            await database.add_chat_message(chat_id, sender_name, "user", user_message)
+            await database.add_chat_message(chat_id, "11-A Oqibat Boti", "assistant", reply_text)
+            return reply_text
+    except Exception as e:
+        logger.warning(f"[Pollinations API xatosi] {e}. Gemini API ga o'tilmoqda...")
+
+    # 3. IKKINCHI URANISH (Fallback): Google Gemini API
     if GEMINI_API_KEY and GEMINI_API_KEY != "your_gemini_api_key_here":
-        # Avval tezkor va limiti ko'p (1500/kun) modellarni sinaymiz
         models_to_try = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash", "gemini-flash-latest"]
         for model_name in models_to_try:
             try:
@@ -71,19 +87,15 @@ async def generate_response(chat_id: int, user_message: str, system_prompt: str,
                 )
                 reply_text = response.choices[0].message.content.strip()
                 if reply_text:
-                    await database.increment_stat("gemini_calls")
-                    # Xotiraga saqlash
+                    await database.increment_stat("failover_count")
                     await database.add_chat_message(chat_id, sender_name, "user", user_message)
                     await database.add_chat_message(chat_id, "11-A Oqibat Boti", "assistant", reply_text)
                     return reply_text
             except Exception as model_err:
-                logger.warning(f"[Gemini API xatosi ({model_name})] {model_err}. Keyingi modelga o'tilmoqda...")
+                logger.warning(f"[Gemini API xatosi ({model_name})] {model_err}")
                 continue
-        await database.increment_stat("failover_count")
-    else:
-        logger.info("Gemini API kaliti topilmadi yoki standart, to'g'ridan-to'g'ri DeepSeek API ga o'tiladi.")
 
-    # 3. Failover / Ikkinchi uranish: DeepSeek API
+    # 4. UCHINCHI URANISH (Final Fallback): DeepSeek API
     if DEEPSEEK_API_KEY and DEEPSEEK_API_KEY != "your_deepseek_api_key_here":
         try:
             response = await deepseek_client.chat.completions.create(
@@ -95,30 +107,11 @@ async def generate_response(chat_id: int, user_message: str, system_prompt: str,
             reply_text = response.choices[0].message.content.strip()
             if reply_text:
                 await database.increment_stat("deepseek_calls")
-                # Xotiraga saqlash
                 await database.add_chat_message(chat_id, sender_name, "user", user_message)
                 await database.add_chat_message(chat_id, "11-A Oqibat Boti", "assistant", reply_text)
                 return reply_text
         except Exception as e:
-            logger.warning(f"[DeepSeek API xatosi] {e}. 3-qatlam (Pollinations AI) ga o'tilmoqda...")
+            logger.error(f"[DeepSeek API xatosi] {e}")
 
-    # 4. Yakuniy o'tib ketilmaydigan cheksiz qatlam: Pollinations AI (Bepul va geo-bloklarsiz)
-    try:
-        response = await pollinations_client.chat.completions.create(
-            model="openai",
-            messages=messages,
-            temperature=0.75,
-            max_tokens=600
-        )
-        reply_text = response.choices[0].message.content.strip()
-        if reply_text:
-            await database.increment_stat("failover_count")
-            # Xotiraga saqlash
-            await database.add_chat_message(chat_id, sender_name, "user", user_message)
-            await database.add_chat_message(chat_id, "11-A Oqibat Boti", "assistant", reply_text)
-            return reply_text
-    except Exception as e:
-        logger.error(f"[Pollinations API xatosi] {e}")
-        await database.increment_stat("api_errors")
-
+    await database.increment_stat("api_errors")
     return f"Assalomu alaykum, {sender_name}! 😊 Hozircha AI tizimimizda qisqa yangilanish bo'lmoqda, lekin men baribir 11-a sinfimizning eng oqibatli va samimiy botiman! ✨🤝"

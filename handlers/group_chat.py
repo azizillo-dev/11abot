@@ -51,11 +51,15 @@ async def handle_group_messages(message: Message):
             sender_name=sender_name
         )
         
-        await message.reply(reply_text)
+        sent_msg = await message.reply(reply_text)
+        if sent_msg:
+            await database.add_bot_group_message(sent_msg.chat.id, sent_msg.message_id, reply_text)
         
         # Stikerlarni ortiqcha ishlatmaslik uchun faqat juda kam va qizig'ida (4% ehtimollik bilan yoki maxsus so'rovlarda) yuboramiz
         if "texnik tanaffus" not in reply_text and random.random() < 0.04:
             try:
-                await message.answer_sticker(get_random_sticker())
+                sent_st = await message.answer_sticker(get_random_sticker())
+                if sent_st:
+                    await database.add_bot_group_message(sent_st.chat.id, sent_st.message_id, "[Stiker]")
             except Exception:
                 pass

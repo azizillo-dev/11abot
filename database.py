@@ -58,6 +58,17 @@ async def init_db():
             )
         """)
         
+        # Botning guruhlarga yuborgan xabarlari jadvali (Admin o'chirishi uchun)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS bot_group_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                chat_id INTEGER NOT NULL,
+                message_id INTEGER NOT NULL,
+                message_text TEXT NOT NULL,
+                sent_at REAL NOT NULL
+            )
+        """)
+        
         await db.commit()
 
 async def add_or_update_user(user_id: int, first_name: str, username: str = ""):
@@ -191,3 +202,30 @@ async def get_stats() -> dict:
         async with db.execute("SELECT key, value FROM stats") as cursor:
             rows = await cursor.fetchall()
             return {row["key"]: row["value"] for row in rows}
+
+async def add_bot_group_message(chat_id: int, message_id: int, message_text: str):
+    async with aiosqlite.connect(DB_PATH) as db:
+        now = time.time()
+        await db.execute("""
+            INSERT INTO bot_group_messages (chat_id, message_id, message_text, sent_at)
+            VALUES (?, ?, ?, ?)
+        """, (chat_id, message_id, message_text[:200], now))
+        await db.commit()
+
+async def get_bot_group_messages(limit: int = 50) -> list[dict]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("""
+            SELECT id, chat_id, message_id, message_text, sent_at
+            FROM bot_group_messages ORDER BY sent_at DESC LIMIT ?
+        """, (limit,)) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
+
+async def remove_bot_group_messages_db(ids: list[int]):
+    if not ids:
+        return
+    async with aiosqlite.connect(DB_PATH) as db:
+        placeholders = ",".join("?" * len(ids))
+        await db.execute(f"DELETE FROM bot_group_messages WHERE id IN ({placeholders})", ids)
+        await db.commit()

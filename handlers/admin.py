@@ -23,7 +23,25 @@ def get_admin_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="📢 Broadcast Yuborish", callback_data="admin_broadcast")
         ],
         [
+            InlineKeyboardButton(text="🗑 Botning guruhdagi xabarlarini o'chirish", callback_data="admin_delete_bot_msgs")
+        ],
+        [
             InlineKeyboardButton(text="❌ Yopish", callback_data="admin_close")
+        ]
+    ])
+
+def get_delete_bot_msgs_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="🧹 Oxirgi 1 ta xabarni o'chirish", callback_data="admin_del_bot_1"),
+            InlineKeyboardButton(text="🧹 Oxirgi 5 ta xabarni o'chirish", callback_data="admin_del_bot_5")
+        ],
+        [
+            InlineKeyboardButton(text="🧹 Oxirgi 15 ta xabarni o'chirish", callback_data="admin_del_bot_15"),
+            InlineKeyboardButton(text="💥 Barcha bot xabarlarini tozalash", callback_data="admin_del_bot_all")
+        ],
+        [
+            InlineKeyboardButton(text="⬅️ Orqaga (Admin Panel)", callback_data="admin_back")
         ]
     ])
 
@@ -160,3 +178,71 @@ async def process_broadcast_text(message: Message, state: FSMContext):
 @router.callback_query(F.data == "admin_close")
 async def cb_admin_close(callback: CallbackQuery):
     await callback.message.delete()
+
+@router.callback_query(F.data == "admin_back")
+async def cb_admin_back(callback: CallbackQuery):
+    if callback.from_user.id not in ADMIN_IDS:
+        return
+    await callback.message.edit_text(
+        "🛠 **11-A Sinf Oqibat Boti — Admin Paneli**\n\n"
+        "Kerakli bo'limni tanlang:",
+        reply_markup=get_admin_keyboard(),
+        parse_mode="Markdown"
+    )
+
+@router.callback_query(F.data == "admin_delete_bot_msgs")
+async def cb_admin_delete_bot_msgs(callback: CallbackQuery):
+    if callback.from_user.id not in ADMIN_IDS:
+        return
+    msgs = await database.get_bot_group_messages(limit=100)
+    await callback.message.edit_text(
+        f"🗑 **Botning guruhdagi xabarlarini o'chirish bo'limi**\n\n"
+        f"📌 Bazada saqlangan bot xabarlari soni: **{len(msgs)} ta**\n\n"
+        "Qancha xabarni guruhdan (va bazadan) o'chirib tashlamoqchisiz tanlang:",
+        reply_markup=get_delete_bot_msgs_keyboard(),
+        parse_mode="Markdown"
+    )
+
+@router.callback_query(F.data.startswith("admin_del_bot_"))
+async def cb_admin_del_bot_action(callback: CallbackQuery):
+    if callback.from_user.id not in ADMIN_IDS:
+        return
+    action = callback.data.split("_")[-1]
+    if action == "1":
+        limit = 1
+    elif action == "5":
+        limit = 5
+    elif action == "15":
+        limit = 15
+    elif action == "all":
+        limit = 200
+    else:
+        limit = 5
+        
+    records = await database.get_bot_group_messages(limit=limit)
+    if not records:
+        await callback.answer("⚠️ Saqlangan bot xabarlari topilmadi!", show_alert=True)
+        return
+        
+    deleted_count = 0
+    ids_to_remove = []
+    for r in records:
+        ids_to_remove.append(r["id"])
+        try:
+            await callback.bot.delete_message(chat_id=r["chat_id"], message_id=r["message_id"])
+            deleted_count += 1
+        except Exception:
+            pass
+            
+    await database.remove_bot_group_messages_db(ids_to_remove)
+    remaining = await database.get_bot_group_messages(limit=100)
+    
+    await callback.answer(f"✅ Guruhdan {deleted_count} ta xabar o'chirildi ({len(ids_to_remove)} tasi bazadan tozalandi)!", show_alert=True)
+    await callback.message.edit_text(
+        f"🗑 **Botning guruhdagi xabarlarini o'chirish bo'limi**\n\n"
+        f"✅ Oxirgi buyruqda **{deleted_count} ta** xabar guruhdan muvaffaqiyatli o'chirildi!\n"
+        f"📌 Bazada qolgan bot xabarlari soni: **{len(remaining)} ta**\n\n"
+        "Yana o'chirmoqchi bo'lsangiz tanlang:",
+        reply_markup=get_delete_bot_msgs_keyboard(),
+        parse_mode="Markdown"
+    )

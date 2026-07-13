@@ -67,10 +67,12 @@ async def send_anonymous_message(message: Message, text: str):
     group_msg_text = f'Kimdir "{text}" deb habar yo\'lladi 🤫✨'
     
     try:
-        await message.bot.send_message(
+        sent_anon = await message.bot.send_message(
             chat_id=target_group_id,
             text=group_msg_text
         )
+        if sent_anon:
+            await database.add_bot_group_message(sent_anon.chat.id, sent_anon.message_id, group_msg_text)
     except Exception as e:
         await message.answer(f"❌ Guruhga xabar yuborishda xatolik yuz berdi. Bot guruhga admin qilinganligini tekshiring.\nXato: {e}")
         return

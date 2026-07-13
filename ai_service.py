@@ -33,19 +33,88 @@ def get_rotating_gpt4_mini_configs() -> list[dict]:
         else:
             configs.append({"base_url": "https://text.pollinations.ai/openai", "api_key": key, "model": "openai"})
             
-    # Hatto kam bo'lsa ham, 6 ta har xil sessiya/kalit bilan almashuvchi bepul qatlamni ta'minlaymiz
+    # Hatto kam bo'lsa ham, 6 ta har xil sessiya/kalit va modellarga (openai, mistral, llama) almashuvchi qatlamni ta'minlaymiz
     defaults = [
         {"base_url": "https://text.pollinations.ai/openai", "api_key": "pollinations_key_alpha_11a", "model": "openai"},
-        {"base_url": "https://text.pollinations.ai/openai", "api_key": "pollinations_key_beta_11a", "model": "openai"},
-        {"base_url": "https://text.pollinations.ai/openai", "api_key": "pollinations_key_gamma_11a", "model": "openai"},
+        {"base_url": "https://text.pollinations.ai/openai", "api_key": "pollinations_key_beta_11a", "model": "mistral"},
+        {"base_url": "https://text.pollinations.ai/openai", "api_key": "pollinations_key_gamma_11a", "model": "llama"},
         {"base_url": "https://text.pollinations.ai/openai", "api_key": "pollinations_key_delta_11a", "model": "openai"},
-        {"base_url": "https://text.pollinations.ai/openai", "api_key": "pollinations_key_omega_11a", "model": "openai"},
-        {"base_url": "https://text.pollinations.ai/openai", "api_key": "pollinations_key_sigma_11a", "model": "openai"},
+        {"base_url": "https://text.pollinations.ai/openai", "api_key": "pollinations_key_omega_11a", "model": "mistral"},
+        {"base_url": "https://text.pollinations.ai/openai", "api_key": "pollinations_key_sigma_11a", "model": "llama"},
     ]
     for d in defaults:
         if not any(c["api_key"] == d["api_key"] for c in configs):
             configs.append(d)
     return configs
+
+def smart_local_reply(sender_name: str, user_message: str) -> str:
+    """
+    Agar tashqi AI API'larning barchasi limitga tushib qolsa ham, suhbatni uzmasdan,
+    suhbatdoshning jinsi va gapining mazmuniga qarab juda samimiy, hazilkash yoki romantik
+    tabiiy o'zbekcha javob qaytaradigan mahalliy aqlli qatlam. ASLO 'texnik ish' demaydi!
+    """
+    msg_low = (user_message or "").lower()
+    
+    # Qiz bola ismlarini aniqlash (Nazokatli muomala va romantik hazillar uchun)
+    female_indicators = ["a", "noza", "gul", "shoh", "oy", "bibi", "banu", "zuxra", "fotima", "madina", "nigina", "sevinch", "rayxon", "kamola", "dildora", "shahnoza", "aziza", "malika", "feruza", "dilnoza", "guli"]
+    is_female = any(sender_name.lower().endswith(fi) or fi in sender_name.lower() for fi in female_indicators)
+    
+    # 1. Sevgi, romantika yoki maqtov
+    if any(w in msg_low for w in ["sevib", "sevaman", "yurak", "chiroyli", "g'ozal", "go'zal", "romantik", "sensiz", "sog'indim", "yoqasan"]):
+        if is_female:
+            replies = [
+                f"Voy, {sender_name}, bunday chiroyli va samimiy so'zlaringizdan yuragim hapqirib ketdi-ku! 🌸 Sizdek nazokatli sinfdoshim borligidan doim faxrlanaman ✨",
+                f"{sender_name}, sizning samimiy va chiroyli lutfingiz butun 11-A sinfimizni yoritib yuboradi! 💖 Doim shunday guldek yashnab yuring!",
+                f"Ohho, {sender_name}, buncha romantik va shirin so'zlar! 🥰 Sizdek ajoyib va nozik sinfdoshimga har qancha yaxshi tilaklar ham kamlik qiladi ✨"
+            ]
+        else:
+            replies = [
+                f"O'x-ho, {sender_name} jigar, romantikani yirtib tashlading-ku! 😄 Lekin gap yo'q, sinfdoshlar orasida eng oqibatli va samimiysi o'zing bittasan! 🤝",
+                f"Eee {sender_name} do'stim, ko'ngling juda ochiq-da! 11-A sinfimizning eng quvnoq va mard yigitlaridansan, doim sog' bo'l jigarim! 🔥💪"
+            ]
+        return random.choice(replies)
+        
+    # 2. Salomlashish yoki hol-ahvol so'rash
+    if any(w in msg_low for w in ["salom", "qalesan", "qalay", "yaxshimisiz", "nima gap", "qalaysiz", "assalomu", "hi", "hello"]):
+        if is_female:
+            replies = [
+                f"Assalomu alaykum, {sender_name} xonim! 🌸 Yaxshimisiz, kunlaringiz maroqli va ajoyib o'tyaptimi? Sinfimizning ko'rki bo'lib yuring doim! ✨",
+                f"Salom, {sender_name}! 😊 Kayfiyatlaringiz a'lomi? Sizdek nazokatli sinfdoshimni ko'rib kayfiyatim ko'tarilib ketdi! 🌷"
+            ]
+        else:
+            replies = [
+                f"Qalay jigarim {sender_name}! 💪 Ishlar, o'qishlar joyidami? 11-A ning mard sinfdoshi, har doimgidek kayfiyatni cho'qqida ushla! 🔥",
+                f"Salom {sender_name} do'stim! 🤝 Nima gaplar, choyxona yoki yig'ilish qachon endi? Sinfdoshlarni bir yoqlamoqchimisizlar! 😄"
+            ]
+        return random.choice(replies)
+
+    # 3. Hazil, kulgi yoki kayfiyat
+    if any(w in msg_low for w in ["haha", "xaxa", "kulgili", "qiziq", "hazil", "qoyil", "zor", "zo'r", "gap yo'q", "gap yoq"]):
+        if is_female:
+            replies = [
+                f"Doim shunday tabassum va quvnoq kayfiyat sizni tark etmasin, {sender_name}! 🌸 Sizning kulgingiz sinfimizga chiroy qo'shadi ✨",
+                f"Gaplarim sizga ma'qul kelganidan xursandman, {sender_name}! 😊 Har kungi o'qish va ishlarida faqat omad yor bo'lsin! 🌷"
+            ]
+        else:
+            replies = [
+                f"Ha-ha, gap yo'q {sender_name} jigar! 😄 Kayfiyat doim mana shunday 100 ball bo'lsin, 11-A ning eng quvnoq vakilisan! 💪🔥",
+                f"Shunaqa gaplar jigarim {sender_name}! 😎 Sinfdoshlar davrasida sening hazillarizga va suhbatingga teng keladigani yo'q! 🤝"
+            ]
+        return random.choice(replies)
+        
+    # 4. Umumiy holat (har qanday boshqa mavzuga juda mos keluvchi samimiy va oqibatli javoblar)
+    if is_female:
+        return random.choice([
+            f"Fikringiz juda to'g'ri va ajoyib, {sender_name}! 🌸 11-A sinfimizda sizdek aqlli va nazokatli sinfdoshlarimiz borligi biz uchun katta baxt. Yana qanday yangiliklar bor? 😊",
+            f"{sender_name}, har bir so'zingizda alohida samimiyat va nur bor ✨ O'qishlarda va hayotda har doim eng baland cho'qqilarni zabt etishingizga tilakdoshman! 🌷",
+            f"Juda qiziq mavzu ekan, {sender_name}! 😊 Siz bilan suhbatlashish doim shunday maroqli va yoqimli. 11-A sinfimizning oqibati hech qachon yo'qolmasin! 💖"
+        ])
+    else:
+        return random.choice([
+            f"Gapingda jon bor jigarim {sender_name}! 💪 11-A ning eng oqibatli va mard yigitlaridan biri sifatida doim shunday quvnoq va faol bo'lib yurgin! 🔥🤝",
+            f"Eee {sender_name} do'stim, sening fikrlaring doim nishonga aniq tegadi! 😎 Sinfdoshlar bilan oqibatni mustahkamlab, yaqinda bir davrada diydor ko'rishaylik! ☕️✨",
+            f"Rahmat jigarim {sender_name}, juda yaxshi fikr aytding! 🤝 11-A sinfimizning yigitlari doim bir-birini qo'llab-quvvatlaydi, ishlariga eng yuqori baraka tilayman! 💪"
+        ])
 
 def clean_bot_reply(text: str) -> str:
     if not text:
@@ -169,4 +238,7 @@ async def generate_response(chat_id: int, user_message: str, system_prompt: str,
                 continue
 
     await database.increment_stat("api_errors")
-    return f"Assalomu alaykum, {sender_name}! 😊 Hozircha AI tizimimizda qisqa yangilanish bo'lmoqda, lekin men baribir 11-a sinfimizning eng oqibatli va samimiy botiman! ✨🤝"
+    local_reply = smart_local_reply(sender_name, user_message)
+    await database.add_chat_message(chat_id, sender_name, "user", user_message)
+    await database.add_chat_message(chat_id, "11-A Oqibat Boti", "assistant", local_reply)
+    return local_reply

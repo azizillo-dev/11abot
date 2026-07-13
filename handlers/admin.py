@@ -1,3 +1,4 @@
+import html
 from aiogram import Router, F
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
@@ -49,18 +50,18 @@ async def cb_admin_users(callback: CallbackQuery):
         await callback.message.edit_text("Hozircha foydalanuvchilar mavjud emas.", reply_markup=get_admin_keyboard())
         return
 
-    # ID - First Name ko'rinishida formatlash
-    lines = [f"👥 **Jami foydalanuvchilar (`ID - First Name` ko'rinishida): {len(users)} ta**\n"]
+    # ID - First Name ko'rinishida formatlash (HTML parse mode orqali xatosiz ishlash)
+    lines = [f"👥 <b>Jami foydalanuvchilar (ID - First Name ko'rinishida): {len(users)} ta</b>\n"]
     for u in users[:35]: # Telegram xabar uzunligi cheklovidan o'tmaslik uchun 35 ta ko'rsatamiz
         uid = u["user_id"]
-        fname = u["first_name"]
-        uname = f" (@{u['username']})" if u["username"] else ""
-        lines.append(f"• `{uid}` - **{fname}**{uname}")
+        fname = html.escape(u["first_name"] or "Noma'lum")
+        uname = f" (@{html.escape(u['username'])})" if u["username"] else ""
+        lines.append(f"• <code>{uid}</code> - <b>{fname}</b>{uname}")
     
     if len(users) > 35:
         lines.append(f"\n...va yana {len(users) - 35} ta foydalanuvchi.")
         
-    await callback.message.edit_text("\n".join(lines), parse_mode="Markdown", reply_markup=get_admin_keyboard())
+    await callback.message.edit_text("\n".join(lines), parse_mode="HTML", reply_markup=get_admin_keyboard())
 
 @router.callback_query(F.data == "admin_anonim_logs")
 async def cb_admin_anonim_logs(callback: CallbackQuery):
@@ -72,14 +73,14 @@ async def cb_admin_anonim_logs(callback: CallbackQuery):
         await callback.message.edit_text("Hozircha anonim xabarlar yo'q.", reply_markup=get_admin_keyboard())
         return
 
-    lines = ["🤫 **Oxirgi anonim xabarlar (Admin nazorati):**\n"]
+    lines = ["🤫 <b>Oxirgi anonim xabarlar (Admin nazorati):</b>\n"]
     for log in logs:
         sender_id = log["sender_id"]
-        fname = log["sender_first_name"]
-        text = log["message_text"]
-        lines.append(f"• `{sender_id}` - **{fname}** yubordi:\n  💬 *\"{text}\"*\n")
+        fname = html.escape(log["sender_first_name"] or "Noma'lum")
+        text = html.escape(log["message_text"])
+        lines.append(f"• <code>{sender_id}</code> - <b>{fname}</b> yubordi:\n  💬 <i>\"{text}\"</i>\n")
         
-    await callback.message.edit_text("\n".join(lines), parse_mode="Markdown", reply_markup=get_admin_keyboard())
+    await callback.message.edit_text("\n".join(lines), parse_mode="HTML", reply_markup=get_admin_keyboard())
 
 @router.callback_query(F.data == "admin_stats")
 async def cb_admin_stats(callback: CallbackQuery):

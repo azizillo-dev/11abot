@@ -46,4 +46,4 @@ async def handle_private_chat(message: Message):
         sender_name=sender_name
     )
     
-    await message.answer(f"{reply_text} {get_random_emoji()}")
+    await message.answer(reply_text)

@@ -51,10 +51,10 @@ async def handle_group_messages(message: Message):
             sender_name=sender_name
         )
         
-        await message.reply(f"{reply_text} {get_random_emoji()}")
+        await message.reply(reply_text)
         
-        # 50% ehtimollik bilan yoki botga reply qilinganda tabassumli stiker ham yuboramiz
-        if is_reply_to_bot or random.random() < 0.5:
+        # Stikerlarni faqat kerakli, quvnoq joyda va kamroq (15% ehtimollik bilan) yuboramiz
+        if "texnik tanaffus" not in reply_text and random.random() < 0.15:
             try:
                 await message.answer_sticker(get_random_sticker())
             except Exception:
